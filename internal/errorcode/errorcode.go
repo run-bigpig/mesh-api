@@ -2,6 +2,7 @@ package errorcode
 
 var (
 	ErrorCodeNotImplemented = newError(1000, "Not implemented")
+	ErrorCodeInvalidParam   = newError(1001, "Invalid param")
 )
 
 type ErrorCode struct {
@@ -11,6 +12,10 @@ type ErrorCode struct {
 
 func (e ErrorCode) Error() string {
 	return e.Message
+}
+
+func (e ErrorCode) GetCode() int {
+	return e.Code
 }
 
 func newError(code int, message string) *ErrorCode {

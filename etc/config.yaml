@@ -1,0 +1,22 @@
+App: Mesh-Api
+Listen: 0.0.0.0:3000
+
+Adapter:
+  - Name: 深度求索
+    Mark: deepseek
+    Host: https://api.deepseek.com
+  - Name: 月之暗面
+    Mark: moonshot
+    Host: https://api.moonshot.cn
+  - Name: OpenAI
+    Mark: openai
+    Host: https://api.openai.com
+  - Name: 硅基流动
+    Mark: siliconflow
+    Host: https://api.siliconflow.cn
+  - Name: 通义
+    Mark: tongyi
+    Host: https://dashscope.aliyuncs.com
+
+Mysql:
+  DSN: meshapi:SsAARJXYCzcXtYfz@tcp(192.168.10.10:3306)/meshapi?charset=utf8mb4&parseTime=True&loc=Local

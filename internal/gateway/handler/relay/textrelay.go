@@ -1,4 +1,4 @@
-package handler
+package relay
 
 import (
 	"github.com/gofiber/fiber/v2"
