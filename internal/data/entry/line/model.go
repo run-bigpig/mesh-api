@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	columns            = []string{"name", "host", "status", "auth", "weight", "adapter", "proxy_id", "is_proxy"}
+	columns            = []string{"name", "host", "status", "weight", "adapter", "auth", "proxy_id", "is_proxy"}
 	includeTimeColumns = append(columns, entry.TimeRecords...)
 	allColumns         = append([]string{"id"}, includeTimeColumns...)
 )
@@ -20,7 +20,7 @@ func TableName() string {
 
 // InsertOne 插入一条line数据
 func InsertOne(ctx context.Context, data *Line) error {
-	sb := squirrel.Insert(TableName()).Columns(includeTimeColumns...).Values(data.Name, data.Host, data.Status, data.Auth, data.Weight, data.Adapter, data.ProxyId, data.IsProxy, time.Now(), time.Now())
+	sb := squirrel.Insert(TableName()).Columns(includeTimeColumns...).Values(data.Name, data.Host, data.Status, data.Weight, data.Adapter, data.Auth, data.ProxyId, data.IsProxy, time.Now(), time.Now())
 	query, args, err := sb.ToSql()
 	if err != nil {
 		return err
@@ -74,10 +74,10 @@ func UpdateOne(ctx context.Context, data *Line) error {
 		"name":         data.Name,
 		"host":         data.Host,
 		"status":       data.Status,
-		"auth":         data.Auth,
 		"proxy_id":     data.ProxyId,
 		"weight":       data.Weight,
 		"adapter":      data.Adapter,
+		"auth":         data.Auth,
 		"is_proxy":     data.IsProxy,
 		"updated_time": time.Now(),
 	}).Where(squirrel.Eq{"id": data.Id})
@@ -91,11 +91,39 @@ func UpdateOne(ctx context.Context, data *Line) error {
 
 // DeleteOne 删除一条line数据
 func DeleteOne(ctx context.Context, id int64) error {
+	tx, err := driver.GetDb().BeginTxx(ctx, nil)
 	sb := squirrel.Delete(TableName()).Where(squirrel.Eq{"id": id})
 	query, args, err := sb.ToSql()
 	if err != nil {
-		return err
+		return tx.Rollback()
 	}
-	_, err = driver.GetDb().ExecContext(ctx, query, args...)
-	return err
+	_, err = tx.Exec(query, args...)
+	if err != nil {
+		return tx.Rollback()
+	}
+	sb = squirrel.Delete("model_line").Where(squirrel.Eq{"line_id": id})
+	query, args, err = sb.ToSql()
+	if err != nil {
+		return tx.Rollback()
+	}
+	_, err = tx.Exec(query, args...)
+	if err != nil {
+		return tx.Rollback()
+	}
+	return tx.Commit()
+}
+
+// FindLineByIds 根据ids查找line数据
+func FindLineByIds(ctx context.Context, ids []int64) ([]*Line, error) {
+	sb := squirrel.Select(allColumns...).From(TableName()).Where(squirrel.Eq{"id": ids})
+	query, args, err := sb.ToSql()
+	if err != nil {
+		return nil, err
+	}
+	var data []*Line
+	err = driver.GetDb().SelectContext(ctx, &data, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
 }

@@ -7,9 +7,9 @@ type Line struct {
 	Name        string    `db:"name" json:"name"`
 	Host        string    `db:"host" json:"host"`
 	Status      int8      `db:"status" json:"status"`
-	Auth        string    `db:"auth" json:"auth"`
 	Weight      int8      `db:"weight" json:"weight"`
 	Adapter     string    `db:"adapter" json:"adapter"`
+	Auth        string    `db:"auth" json:"auth"`
 	ProxyId     int64     `db:"proxy_id" json:"proxy_id"`
 	IsProxy     int8      `db:"is_proxy" json:"is_proxy"`
 	CreatedTime time.Time `db:"created_time" json:"created_time"`

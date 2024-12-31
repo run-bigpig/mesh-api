@@ -1,7 +1,9 @@
 package relay
 
 import (
+	"errors"
 	"github.com/gofiber/fiber/v2"
+	"github.com/run-bigpig/mesh-api/internal/common"
 	"github.com/run-bigpig/mesh-api/internal/service"
 	"github.com/run-bigpig/mesh-api/internal/service/adapter"
 )
@@ -10,31 +12,31 @@ func ImageHandler(ctx *fiber.Ctx) error {
 	var req adapter.ImageRequest
 	err := ctx.BodyParser(&req)
 	if err != nil {
-		ctx.Status(fiber.StatusInternalServerError).Send([]byte(err.Error()))
 		return err
 	}
 	if req.Model == "" {
-		ctx.Status(fiber.StatusBadRequest).Send([]byte("model is required"))
-		return nil
+		return errors.New("model is required")
 	}
-	relay := service.AdapterProvider(ctx, "siliconflow")
+	line, err := common.RandomLineByWeight(ctx.Context(), req.Model)
+	if err != nil {
+		return err
+	}
+	relay := service.AdapterProvider(ctx, line.Adapter)
 	adapterParams := &adapter.Params{
-		Api:  "https://api.moonshot.cn",
-		Sk:   "sk-S9fP5nRJVrVuO8jWo831JORCpYUTYzZkC8jLDp8YlAX2FUyG",
+		Api:  line.Host,
+		Sk:   line.Auth,
 		Mode: adapter.ImageGeneration,
 	}
-	//转换请求
+	//转换图片请求
 	params, err := relay.ImageConversion(adapterParams, &req)
 	if err != nil {
-		ctx.Status(fiber.StatusInternalServerError).Send([]byte(err.Error()))
 		return err
 	}
 	//转发
 	resp, err := relay.Relay(params)
 	if err != nil {
-		ctx.Status(fiber.StatusInternalServerError).Send([]byte(err.Error()))
 		return err
 	}
-	//处理响应
+	//处理图片响应
 	return relay.ImageResponse(resp)
 }

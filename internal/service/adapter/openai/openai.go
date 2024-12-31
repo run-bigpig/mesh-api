@@ -51,9 +51,9 @@ func (o *OpenAI) TextConversion(params *adapter.Params, req *adapter.TextRequest
 
 func (o *OpenAI) TextResponse(params *adapter.Params, resp *http.Response) error {
 	if params.Stream {
-		return o.StreamResponse(resp)
+		return o.StreamResponse(resp, params.TokenRecord)
 	}
-	return o.NormalResponse(resp)
+	return o.NormalResponse(resp, params.TokenRecord)
 }
 
 func (o *OpenAI) ImageConversion(params *adapter.Params, req *adapter.ImageRequest) (*adapter.ConversionParams, error) {
@@ -74,7 +74,7 @@ func (o *OpenAI) ImageConversion(params *adapter.Params, req *adapter.ImageReque
 }
 
 func (o *OpenAI) ImageResponse(resp *http.Response) error {
-	return o.NormalResponse(resp)
+	return o.NormalResponse(resp, nil)
 }
 
 func (o *OpenAI) Relay(params *adapter.ConversionParams) (*http.Response, error) {
@@ -93,17 +93,22 @@ func (o *OpenAI) Relay(params *adapter.ConversionParams) (*http.Response, error)
 }
 
 // NormalResponse 普通响应
-func (o *OpenAI) NormalResponse(resp *http.Response) error {
+func (o *OpenAI) NormalResponse(resp *http.Response, u chan *adapter.Usage) error {
+	var usage adapter.ChatCompletionsStreamResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		err = o.ctx.Status(fiber.StatusInternalServerError).Send([]byte(err.Error()))
-		return err
+		return o.ctx.Status(fiber.StatusInternalServerError).Send([]byte(err.Error()))
 	}
+	err = json.Unmarshal(responseBody, &usage)
+	if err != nil {
+		log.Errorf("error unmarshaling usage: " + err.Error())
+	}
+	u <- usage.Usage
 	return o.ctx.Status(resp.StatusCode).Send(responseBody)
 }
 
 // StreamResponse 流式响应
-func (o *OpenAI) StreamResponse(resp *http.Response) error {
+func (o *OpenAI) StreamResponse(resp *http.Response, u chan *adapter.Usage) error {
 	//设置header
 	o.ctx.Set("Content-Type", "text/event-stream")
 	o.ctx.Set("Cache-Control", "no-cache")
@@ -113,6 +118,7 @@ func (o *OpenAI) StreamResponse(resp *http.Response) error {
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Split(bufio.ScanLines)
 	var closed bool
+	var usage adapter.ChatCompletionsStreamResponse
 	doneRendered := false
 	//设置body stream
 	o.ctx.Status(fiber.StatusOK).Context().SetBodyStreamWriter(func(w *bufio.Writer) {
@@ -132,6 +138,15 @@ func (o *OpenAI) StreamResponse(resp *http.Response) error {
 				adapter.WriteStringData(w, data, &closed)
 				doneRendered = true
 				continue
+			}
+			if strings.Contains(data, "usage") {
+				err := json.Unmarshal([]byte(data[dataPrefixLength:]), &usage)
+				if err != nil {
+					log.Error("error unmarshaling usage: " + err.Error())
+					continue
+				}
+				// 发送usage
+				u <- usage.Usage
 			}
 			adapter.WriteStringData(w, data, &closed)
 		}

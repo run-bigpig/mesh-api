@@ -1,6 +1,7 @@
 package response
 
 import (
+	"database/sql"
 	"errors"
 	"github.com/gofiber/fiber/v2"
 	"github.com/run-bigpig/mesh-api/internal/errorcode"
@@ -20,6 +21,9 @@ func Fail(ctx *fiber.Ctx, err error) error {
 			Message: e.Error(),
 			Data:    nil,
 		})
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		err = errors.New("record not found")
 	}
 	return ctx.Status(500).JSON(&Response{
 		Code:    500,

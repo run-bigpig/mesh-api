@@ -1,6 +1,8 @@
 package adapter
 
-import "io"
+import (
+	"io"
+)
 
 type Message struct {
 	Role       string  `json:"role,omitempty"`
@@ -127,10 +129,11 @@ type ImageRequest struct {
 }
 
 type Params struct {
-	Api    string
-	Sk     string
-	Mode   int8
-	Stream bool
+	Api         string
+	Sk          string
+	Mode        int8
+	Stream      bool
+	TokenRecord chan *Usage
 }
 
 type ConversionParams struct {

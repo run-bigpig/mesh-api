@@ -44,6 +44,21 @@ func FindOne(ctx context.Context, id int64) (*Model, error) {
 	return &data, nil
 }
 
+// FindOneByName 根据name查找一条model数据
+func FindOneByName(ctx context.Context, name string) (*Model, error) {
+	sb := squirrel.Select(allColumns...).From(TableName()).Where(squirrel.Eq{"name": name})
+	query, args, err := sb.ToSql()
+	if err != nil {
+		return nil, err
+	}
+	var data Model
+	err = driver.GetDb().GetContext(ctx, &data, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	return &data, nil
+}
+
 // FindAll 查找所有model数据
 func FindAll(ctx context.Context, req *FindModelRequest) ([]*Model, error) {
 	sb := squirrel.Select(allColumns...).From(TableName())
@@ -81,11 +96,71 @@ func UpdateOne(ctx context.Context, data *Model) error {
 
 // DeleteOne 删除一条model数据
 func DeleteOne(ctx context.Context, id int64) error {
+	tx, err := driver.GetDb().BeginTxx(ctx, nil)
 	sb := squirrel.Delete(TableName()).Where(squirrel.Eq{"id": id})
 	query, args, err := sb.ToSql()
 	if err != nil {
+		return tx.Rollback()
+	}
+	_, err = tx.Exec(query, args...)
+	if err != nil {
+		return tx.Rollback()
+	}
+	sb = squirrel.Delete("model_line").Where(squirrel.Eq{"model_id": id})
+	query, args, err = sb.ToSql()
+	if err != nil {
+		return tx.Rollback()
+	}
+	_, err = tx.Exec(query, args...)
+	if err != nil {
+		return tx.Rollback()
+	}
+	return tx.Commit()
+}
+
+// SetModelLine 批量设置model的line
+func SetModelLine(ctx context.Context, req *SetModelLineRequest) error {
+	tx, err := driver.GetDb().BeginTxx(ctx, nil)
+	if err != nil {
 		return err
 	}
-	_, err = driver.GetDb().ExecContext(ctx, query, args...)
-	return err
+	deleteSb := squirrel.Delete("model_line").Where(squirrel.Eq{"model_id": req.ModelIds})
+	query, args, err := deleteSb.ToSql()
+	if err != nil {
+		return tx.Rollback()
+	}
+	_, err = tx.Exec(query, args...)
+	if err != nil {
+		return tx.Rollback()
+	}
+	for _, modelId := range req.ModelIds {
+		insertSb := squirrel.Insert("model_line").Columns("model_id", "line_id")
+		for _, lineId := range req.LineIds {
+			insertSb = insertSb.Values(modelId, lineId)
+		}
+		query, args, err = insertSb.ToSql()
+		if err != nil {
+			return tx.Rollback()
+		}
+		_, err = tx.Exec(query, args...)
+		if err != nil {
+			return tx.Rollback()
+		}
+	}
+	return tx.Commit()
+}
+
+// FindModelLine 查找model的line
+func FindModelLine(ctx context.Context, modelId int64) ([]int64, error) {
+	sb := squirrel.Select("line_id").From("model_line").Where(squirrel.Eq{"model_id": modelId})
+	query, args, err := sb.ToSql()
+	if err != nil {
+		return nil, err
+	}
+	var data []int64
+	err = driver.GetDb().SelectContext(ctx, &data, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
 }
